@@ -1,0 +1,621 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AlertEye — Live Prototype</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap');
+
+:root{
+  --bg:#0A0E14;
+  --panel:#111826;
+  --panel-2:#161F30;
+  --border:#243046;
+  --cyan:#00E5C7;
+  --cyan-dim:#0A6B5E;
+  --red:#FF3B5C;
+  --amber:#FFB020;
+  --text:#E7ECF3;
+  --text-mid:#93A1B5;
+  --text-dim:#516078;
+}
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;}
+body{
+  background:radial-gradient(circle at 20% 0%, #0F1522 0%, var(--bg) 55%);
+  color:var(--text);
+  font-family:'Inter',-apple-system,'Segoe UI',sans-serif;
+  min-height:100vh;
+  padding:20px;
+}
+.app{max-width:1280px;margin:0 auto;display:flex;flex-direction:column;gap:14px;}
+
+/* ---- Topbar ---- */
+.topbar{
+  display:flex;align-items:center;justify-content:space-between;
+  background:var(--panel);border:1px solid var(--border);border-radius:10px;
+  padding:14px 20px;
+}
+.brand{display:flex;align-items:center;gap:10px;}
+.brand-mark{
+  width:30px;height:30px;border-radius:7px;
+  background:linear-gradient(135deg,var(--cyan),#0A9E8A);
+  display:flex;align-items:center;justify-content:center;
+  box-shadow:0 0 16px rgba(0,229,199,.35);
+}
+.brand-mark svg{width:16px;height:16px;}
+.brand-text{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:17px;letter-spacing:.02em;}
+.brand-text span{color:var(--cyan);}
+.brand-sub{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--text-dim);letter-spacing:.12em;margin-top:1px;}
+
+.topbar-right{display:flex;align-items:center;gap:22px;}
+.status-pill{
+  display:flex;align-items:center;gap:7px;
+  font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.08em;
+  padding:6px 12px;border-radius:20px;border:1px solid var(--border);background:var(--panel-2);
+}
+.status-dot{width:7px;height:7px;border-radius:50%;background:var(--cyan);box-shadow:0 0 8px var(--cyan);}
+.status-dot.paused{background:var(--amber);box-shadow:0 0 8px var(--amber);animation:none;}
+.status-dot.live{animation:pulse 1.6s ease-in-out infinite;}
+@keyframes pulse{0%,100%{opacity:1;}50%{opacity:.35;}}
+.clock{font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--text-mid);}
+
+/* ---- Console layout ---- */
+.console{display:grid;grid-template-columns:1fr 340px;gap:14px;}
+@media (max-width:860px){.console{grid-template-columns:1fr;}}
+
+.feed-panel,.alert-panel{
+  background:var(--panel);border:1px solid var(--border);border-radius:10px;
+  overflow:hidden;display:flex;flex-direction:column;
+}
+.panel-head{
+  display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;
+  padding:12px 16px;border-bottom:1px solid var(--border);background:var(--panel-2);
+}
+.panel-title{font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--text-mid);}
+.panel-title b{color:var(--text);}
+
+.controls{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+.btn{
+  font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.04em;
+  background:var(--panel);border:1px solid var(--border);color:var(--text-mid);
+  padding:6px 11px;border-radius:6px;cursor:pointer;transition:.15s;
+}
+.btn:hover{border-color:var(--cyan);color:var(--text);}
+.btn.active{background:rgba(0,229,199,.12);border-color:var(--cyan);color:var(--cyan);}
+.btn.danger.active{background:rgba(255,59,92,.12);border-color:var(--red);color:var(--red);}
+
+.slider-wrap{display:flex;align-items:center;gap:7px;font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--text-dim);}
+input[type=range]{accent-color:var(--cyan);width:80px;}
+
+/* ---- Viewport ---- */
+.viewport{
+  position:relative;width:100%;aspect-ratio:16/9;background:#000;overflow:hidden;
+}
+.viewport canvas{position:absolute;top:0;left:0;width:100%;height:100%;}
+.viewport video{display:none;}
+
+.feed-foot{
+  display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;
+  padding:9px 16px;border-top:1px solid var(--border);
+  font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--text-dim);
+}
+.feed-foot .note{color:var(--text-dim);max-width:640px;line-height:1.5;}
+
+/* ---- Alert panel ---- */
+.alert-counts{display:flex;gap:8px;padding:10px 16px;border-bottom:1px solid var(--border);}
+.count-chip{
+  flex:1;text-align:center;padding:7px 4px;border-radius:6px;background:var(--panel-2);
+  font-family:'JetBrains Mono',monospace;
+}
+.count-chip .num{font-size:16px;font-weight:700;display:block;}
+.count-chip .lbl{font-size:9px;color:var(--text-dim);letter-spacing:.08em;text-transform:uppercase;}
+.count-chip.info .num{color:var(--cyan);}
+.count-chip.warn .num{color:var(--amber);}
+.count-chip.crit .num{color:var(--red);}
+
+.alert-list{flex:1;overflow-y:auto;max-height:520px;padding:8px;}
+.alert-list::-webkit-scrollbar{width:6px;}
+.alert-list::-webkit-scrollbar-thumb{background:var(--border);border-radius:4px;}
+
+.alert-item{
+  display:flex;gap:10px;padding:9px;border-radius:8px;margin-bottom:6px;
+  background:var(--panel-2);border:1px solid var(--border);
+  animation:slidein .25s ease;
+}
+@keyframes slidein{from{opacity:0;transform:translateY(-6px);}to{opacity:1;transform:translateY(0);}}
+.alert-item img{width:52px;height:32px;object-fit:cover;border-radius:4px;border:1px solid var(--border);flex-shrink:0;}
+.alert-item .body{flex:1;min-width:0;}
+.alert-item .top-row{display:flex;justify-content:space-between;gap:6px;align-items:center;}
+.sev-tag{
+  font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;letter-spacing:.06em;
+  padding:2px 6px;border-radius:4px;text-transform:uppercase;flex-shrink:0;
+}
+.sev-tag.info{background:rgba(0,229,199,.14);color:var(--cyan);}
+.sev-tag.warn{background:rgba(255,176,32,.14);color:var(--amber);}
+.sev-tag.crit{background:rgba(255,59,92,.16);color:var(--red);}
+.alert-item .msg{font-size:12px;color:var(--text);margin-top:3px;line-height:1.3;}
+.alert-item .meta{font-family:'JetBrains Mono',monospace;font-size:9.5px;color:var(--text-dim);margin-top:3px;}
+.empty-log{padding:30px 14px;text-align:center;color:var(--text-dim);font-size:12px;font-family:'JetBrains Mono',monospace;}
+
+footer.disclaimer{
+  font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--text-dim);
+  text-align:center;padding:6px 10px;line-height:1.6;
+}
+footer.disclaimer b{color:var(--text-mid);}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <div class="topbar">
+    <div class="brand">
+      <div class="brand-mark">
+        <svg viewBox="0 0 24 24" fill="none"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7-10-7-10-7Z" stroke="#04121A" stroke-width="2"/><circle cx="12" cy="12" r="3" fill="#04121A"/></svg>
+      </div>
+      <div>
+        <div class="brand-text">Alert<span>Eye</span></div>
+        <div class="brand-sub">CYBERSOUL · LIVE PROTOTYPE</div>
+      </div>
+    </div>
+    <div class="topbar-right">
+      <div class="status-pill"><div id="statusDot" class="status-dot live"></div><span id="statusText">MONITORING</span></div>
+      <div class="clock" id="clock">00:00:00</div>
+    </div>
+  </div>
+
+  <div class="console">
+
+    <section class="feed-panel">
+      <div class="panel-head">
+        <div class="panel-title">CAM-01 · <b id="sourceLabel">Demo Feed</b></div>
+        <div class="controls">
+          <button class="btn active" id="btnDemo">Demo Feed</button>
+          <button class="btn" id="btnCamera">Use My Camera</button>
+          <button class="btn" id="btnZone">Restricted Zone: ON</button>
+          <button class="btn" id="btnPause">Pause</button>
+          <div class="slider-wrap">SENS <input type="range" id="sensSlider" min="8" max="60" value="26"><span id="sensVal">26</span></div>
+        </div>
+      </div>
+      <div class="viewport" id="viewport">
+        <canvas id="sceneCanvas" width="960" height="540"></canvas>
+        <canvas id="overlayCanvas" width="960" height="540"></canvas>
+        <video id="camVideo" autoplay playsinline muted></video>
+      </div>
+      <div class="feed-foot">
+        <span id="fpsLabel">960×540 · analyzing 160×90 grid</span>
+        <span class="note">Prototype engine: real-time browser motion analysis (frame differencing). Production AlertEye replaces this with trained deep-learning models — YOLO / COCO-SSD — for true object classification, face recognition, and weapon/fire detection.</span>
+      </div>
+    </section>
+
+    <aside class="alert-panel">
+      <div class="panel-head" style="border-bottom:none;">
+        <div class="panel-title">Alert Stream</div>
+        <button class="btn" id="btnClear">Clear</button>
+      </div>
+      <div class="alert-counts">
+        <div class="count-chip info"><span class="num" id="cntInfo">0</span><span class="lbl">Info</span></div>
+        <div class="count-chip warn"><span class="num" id="cntWarn">0</span><span class="lbl">Warning</span></div>
+        <div class="count-chip crit"><span class="num" id="cntCrit">0</span><span class="lbl">Critical</span></div>
+      </div>
+      <div class="alert-list" id="alertList">
+        <div class="empty-log" id="emptyLog">No events yet — watching the feed…</div>
+      </div>
+    </aside>
+
+  </div>
+
+  <footer class="disclaimer">Working prototype for internal demo purposes · Drag the red zone box on the video to reposition the restricted area · <b>AlertEye</b> by CyberSoul</footer>
+</div>
+
+<script>
+(function(){
+  const sceneCanvas = document.getElementById('sceneCanvas');
+  const overlayCanvas = document.getElementById('overlayCanvas');
+  const sctx = sceneCanvas.getContext('2d');
+  const octx = overlayCanvas.getContext('2d');
+  const video = document.getElementById('camVideo');
+  const W = sceneCanvas.width, H = sceneCanvas.height;
+
+  // downsample grid for motion analysis
+  const GW = 160, GH = 90;
+  const grid = document.createElement('canvas'); grid.width=GW; grid.height=GH;
+  const gctx = grid.getContext('2d', {willReadFrequently:true});
+  let prevGray = null;
+
+  let sensitivity = 26;
+  let usingCamera = false;
+  let paused = false;
+  let zoneOn = true;
+  let zone = {x: W*0.62, y: H*0.15, w: W*0.30, h: H*0.55};
+  let dragging = false, dragOffset={x:0,y:0};
+
+  // ---------- Synthetic demo scene actors ----------
+  function rand(a,b){return a+Math.random()*(b-a);}
+  let actors = [
+    {type:'person', x:120, y:380, r:16, ang:rand(0,6.28), speed:26, wobble:rand(0,6)},
+    {type:'person', x:500, y:200, r:14, ang:rand(0,6.28), speed:22, wobble:rand(0,6)},
+    {type:'vehicle', x:300, y:460, w:70, h:28, ang:rand(0,6.28), speed:34, wobble:rand(0,6)},
+  ];
+  let lastT = performance.now();
+
+  function drawScene(t){
+    // corridor background
+    let g = sctx.createLinearGradient(0,0,0,H);
+    g.addColorStop(0,'#0B0F17'); g.addColorStop(1,'#171E2B');
+    sctx.fillStyle = g; sctx.fillRect(0,0,W,H);
+
+    // perspective floor lines
+    sctx.strokeStyle = 'rgba(120,150,180,0.08)'; sctx.lineWidth=1;
+    for(let i=-6;i<=6;i++){
+      sctx.beginPath();
+      sctx.moveTo(W/2 + i*40, H*0.35);
+      sctx.lineTo(W/2 + i*160, H);
+      sctx.stroke();
+    }
+    for(let j=0;j<6;j++){
+      let yy = H*0.35 + j*j*10;
+      sctx.beginPath(); sctx.moveTo(0,yy); sctx.lineTo(W,yy); sctx.stroke();
+    }
+
+    // actors
+    actors.forEach(a=>{
+      a.ang += (Math.random()-0.5)*0.06;
+      a.x += Math.cos(a.ang)*a.speed*(1/60);
+      a.y += Math.sin(a.ang)*a.speed*0.5*(1/60);
+      if(a.x<20){a.x=20;a.ang=Math.random()*3.14-1.57;}
+      if(a.x>W-20){a.x=W-20;a.ang=Math.PI-(Math.random()*3.14-1.57);}
+      if(a.y<H*0.32){a.y=H*0.32;a.ang=Math.random()*3.14;}
+      if(a.y>H-20){a.y=H-20;a.ang=-Math.random()*3.14;}
+
+      if(a.type==='person'){
+        sctx.fillStyle = '#3A4A63';
+        sctx.beginPath(); sctx.ellipse(a.x,a.y,a.r*0.6,a.r,0,0,7); sctx.fill();
+        sctx.fillStyle = '#4C5F7D';
+        sctx.beginPath(); sctx.arc(a.x, a.y-a.r*1.15, a.r*0.45,0,7); sctx.fill();
+      } else {
+        sctx.fillStyle = '#39485F';
+        sctx.fillRect(a.x-a.w/2, a.y-a.h/2, a.w, a.h);
+      }
+    });
+
+    // vignette + CCTV burn-in
+    let vg = sctx.createRadialGradient(W/2,H/2,H*0.2,W/2,H/2,H*0.85);
+    vg.addColorStop(0,'rgba(0,0,0,0)'); vg.addColorStop(1,'rgba(0,0,0,0.55)');
+    sctx.fillStyle = vg; sctx.fillRect(0,0,W,H);
+
+    sctx.font = "11px 'JetBrains Mono', monospace";
+    sctx.fillStyle = 'rgba(0,229,199,0.75)';
+    sctx.fillText('CAM-01 · DEMO SCENE', 14, 22);
+  }
+
+  function drawFromVideo(){
+    sctx.drawImage(video, 0, 0, W, H);
+  }
+
+  // ---------- Motion detection ----------
+  function toGray(imgData){
+    const d = imgData.data; const out = new Uint8ClampedArray(GW*GH);
+    for(let i=0, p=0; i<d.length; i+=4, p++){
+      out[p] = (d[i]*0.299 + d[i+1]*0.587 + d[i+2]*0.114)|0;
+    }
+    return out;
+  }
+
+  function detectBlobs(){
+    gctx.drawImage(sceneCanvas, 0, 0, GW, GH);
+    const imgData = gctx.getImageData(0,0,GW,GH);
+    const gray = toGray(imgData);
+    if(!prevGray){ prevGray = gray; return []; }
+
+    const hot = new Uint8Array(GW*GH);
+    for(let i=0;i<gray.length;i++){
+      if(Math.abs(gray[i]-prevGray[i]) > sensitivity) hot[i]=1;
+    }
+    prevGray = gray;
+
+    // connected components (4-dir flood fill)
+    const visited = new Uint8Array(GW*GH);
+    const blobs = [];
+    const stack = [];
+    for(let y=0;y<GH;y++){
+      for(let x=0;x<GW;x++){
+        const idx = y*GW+x;
+        if(hot[idx] && !visited[idx]){
+          let minX=x,maxX=x,minY=y,maxY=y,count=0;
+          stack.push(idx); visited[idx]=1;
+          while(stack.length){
+            const c = stack.pop();
+            const cy = (c/GW)|0, cx = c - cy*GW;
+            count++;
+            if(cx<minX)minX=cx; if(cx>maxX)maxX=cx;
+            if(cy<minY)minY=cy; if(cy>maxY)maxY=cy;
+            const nbrs = [c-1,c+1,c-GW,c+GW];
+            for(const n of nbrs){
+              if(n>=0 && n<GW*GH && hot[n] && !visited[n]){
+                // guard wrap-around on x
+                const ny=(n/GW)|0, nx=n-ny*GW;
+                if(Math.abs(nx-cx)>1) continue;
+                visited[n]=1; stack.push(n);
+              }
+            }
+          }
+          if(count>=4){
+            blobs.push({
+              gx:minX, gy:minY, gw:maxX-minX+1, gh:maxY-minY+1, area:count
+            });
+          }
+        }
+      }
+    }
+    return blobs;
+  }
+
+  // ---------- Tracking + alerts ----------
+  let tracked = []; // {id, x,y,w,h,lastSeen}
+  let nextId = 1;
+  let cooldowns = new Map(); // coarse-cell -> timestamp
+
+  function toCanvasRect(b){
+    return {
+      x: (b.gx/GW)*W, y:(b.gy/GH)*H,
+      w: (b.gw/GW)*W, h:(b.gh/GH)*H,
+      area: b.area
+    };
+  }
+
+  function rectsOverlap(a,b){
+    return a.x < b.x+b.w && a.x+a.w > b.x && a.y < b.y+b.h && a.y+a.h > b.y;
+  }
+
+  function coarseCellKey(cx,cy){
+    const col = Math.min(5, (cx/W*6)|0);
+    const row = Math.min(3, (cy/H*4)|0);
+    return col+'_'+row;
+  }
+
+  function regionLabel(cx,cy){
+    const hcol = cx < W*0.34 ? 'Left' : cx > W*0.66 ? 'Right' : 'Center';
+    const vrow = cy < H*0.4 ? 'Far' : cy > H*0.7 ? 'Near' : 'Mid';
+    return vrow + '-' + hcol;
+  }
+
+  function updateTracking(rects){
+    const now = performance.now();
+    const used = new Set();
+    rects.forEach(r=>{
+      r.cx = r.x + r.w/2; r.cy = r.y + r.h/2;
+      let best=null, bestD=9999;
+      tracked.forEach((tk,i)=>{
+        if(used.has(i)) return;
+        const d = Math.hypot(tk.cx-r.cx, tk.cy-r.cy);
+        if(d<bestD && d<80){ bestD=d; best=i; }
+      });
+      if(best!==null){
+        used.add(best);
+        r.id = tracked[best].id;
+        tracked[best] = {...tracked[best], ...r, lastSeen:now};
+      } else {
+        r.id = nextId++;
+        tracked.push({...r, lastSeen:now});
+      }
+    });
+    tracked = tracked.filter(tk => now - tk.lastSeen < 600);
+    return rects;
+  }
+
+  function severityFor(r){
+    const overlapsZone = zoneOn && rectsOverlap(r, zone);
+    if(overlapsZone) return 'crit';
+    if(r.area > 55) return 'warn';
+    return 'info';
+  }
+
+  function maybeAlert(r){
+    const now = performance.now();
+    const key = coarseCellKey(r.cx, r.cy);
+    const last = cooldowns.get(key) || 0;
+    if(now - last < 3200) return;
+    cooldowns.set(key, now);
+
+    const sev = severityFor(r);
+    const region = regionLabel(r.cx, r.cy);
+    let msg;
+    if(sev==='crit') msg = `Restricted zone breach — object detected (OBJ-${r.id})`;
+    else if(sev==='warn') msg = `Large object in frame — ${region} (OBJ-${r.id})`;
+    else msg = `Motion detected — ${region} (OBJ-${r.id})`;
+
+    pushAlert(sev, msg);
+  }
+
+  // ---------- Alert log UI ----------
+  let counts = {info:0,warn:0,crit:0};
+  function pushAlert(sev, msg){
+    counts[sev]++;
+    document.getElementById('cntInfo').textContent = counts.info;
+    document.getElementById('cntWarn').textContent = counts.warn;
+    document.getElementById('cntCrit').textContent = counts.crit;
+
+    const list = document.getElementById('alertList');
+    const empty = document.getElementById('emptyLog');
+    if(empty) empty.remove();
+
+    const thumb = sceneCanvas.toDataURL('image/jpeg', 0.5);
+    const item = document.createElement('div');
+    item.className = 'alert-item';
+    const time = new Date().toLocaleTimeString();
+    item.innerHTML = `
+      <img src="${thumb}" alt="snapshot">
+      <div class="body">
+        <div class="top-row">
+          <span class="sev-tag ${sev}">${sev==='crit'?'Critical':sev==='warn'?'Warning':'Info'}</span>
+        </div>
+        <div class="msg">${msg}</div>
+        <div class="meta">${time} · CAM-01</div>
+      </div>`;
+    list.prepend(item);
+    while(list.children.length > 30) list.removeChild(list.lastChild);
+  }
+
+  // ---------- Overlay drawing (HUD) ----------
+  let scanY = 0;
+  function drawOverlay(rects){
+    octx.clearRect(0,0,W,H);
+
+    // corner brackets
+    octx.strokeStyle = 'rgba(0,229,199,0.5)'; octx.lineWidth = 2;
+    const cl = 22, m=10;
+    [[m,m,1,1],[W-m,m,-1,1],[m,H-m,1,-1],[W-m,H-m,-1,-1]].forEach(([x,y,dx,dy])=>{
+      octx.beginPath();
+      octx.moveTo(x, y+cl*dy); octx.lineTo(x,y); octx.lineTo(x+cl*dx, y);
+      octx.stroke();
+    });
+
+    // scanline
+    scanY = (scanY + 1.4) % H;
+    const sg = octx.createLinearGradient(0,scanY-14,0,scanY+14);
+    sg.addColorStop(0,'rgba(0,229,199,0)'); sg.addColorStop(0.5,'rgba(0,229,199,0.10)'); sg.addColorStop(1,'rgba(0,229,199,0)');
+    octx.fillStyle = sg; octx.fillRect(0,scanY-14,W,28);
+
+    // zone
+    if(zoneOn){
+      octx.strokeStyle = 'rgba(255,59,92,0.85)'; octx.setLineDash([6,4]); octx.lineWidth=2;
+      octx.strokeRect(zone.x, zone.y, zone.w, zone.h);
+      octx.setLineDash([]);
+      octx.fillStyle='rgba(255,59,92,0.07)'; octx.fillRect(zone.x,zone.y,zone.w,zone.h);
+      octx.font = "10px 'JetBrains Mono', monospace";
+      octx.fillStyle='rgba(255,59,92,0.9)';
+      octx.fillText('RESTRICTED ZONE', zone.x+6, zone.y+14);
+    }
+
+    // boxes
+    rects.forEach(r=>{
+      const sev = severityFor(r);
+      const color = sev==='crit' ? '#FF3B5C' : sev==='warn' ? '#FFB020' : '#00E5C7';
+      octx.strokeStyle = color; octx.lineWidth = 2;
+      octx.strokeRect(r.x, r.y, r.w, r.h);
+      const label = sev==='crit' ? `ZONE BREACH · OBJ-${r.id}` : sev==='warn' ? `LARGE OBJ · OBJ-${r.id}` : `MOTION · OBJ-${r.id}`;
+      octx.font = "10px 'JetBrains Mono', monospace";
+      const tw = octx.measureText(label).width;
+      octx.fillStyle = color;
+      octx.fillRect(r.x, r.y-15, tw+8, 15);
+      octx.fillStyle = '#04121A';
+      octx.fillText(label, r.x+4, r.y-4);
+    });
+
+    // rec dot + timestamp burn-in
+    octx.fillStyle = 'rgba(255,255,255,0.85)';
+    octx.beginPath(); octx.arc(W-70, 20, 4, 0, 7); octx.fill();
+    octx.font = "11px 'JetBrains Mono', monospace";
+    octx.fillText('REC', W-58, 24);
+  }
+
+  // ---------- Main loop ----------
+  function loop(t){
+    requestAnimationFrame(loop);
+    if(paused) return;
+
+    if(usingCamera && video.readyState >= 2){ drawFromVideo(); }
+    else { drawScene(t); }
+
+    const blobs = detectBlobs();
+    let rects = blobs.map(toCanvasRect);
+    rects = updateTracking(rects);
+    rects.forEach(r=>maybeAlert(r));
+    drawOverlay(rects);
+  }
+  requestAnimationFrame(loop);
+
+  // ---------- Clock ----------
+  setInterval(()=>{ document.getElementById('clock').textContent = new Date().toLocaleTimeString(); },1000);
+
+  // ---------- Controls ----------
+  const btnDemo = document.getElementById('btnDemo');
+  const btnCamera = document.getElementById('btnCamera');
+  const btnZone = document.getElementById('btnZone');
+  const btnPause = document.getElementById('btnPause');
+  const btnClear = document.getElementById('btnClear');
+  const sensSlider = document.getElementById('sensSlider');
+  const sensVal = document.getElementById('sensVal');
+  const sourceLabel = document.getElementById('sourceLabel');
+  const statusDot = document.getElementById('statusDot');
+  const statusText = document.getElementById('statusText');
+
+  btnDemo.addEventListener('click', ()=>{
+    usingCamera = false;
+    if(video.srcObject){ video.srcObject.getTracks().forEach(tr=>tr.stop()); video.srcObject=null; }
+    btnDemo.classList.add('active'); btnCamera.classList.remove('active');
+    sourceLabel.textContent = 'Demo Feed';
+    prevGray = null;
+  });
+
+  btnCamera.addEventListener('click', async ()=>{
+    try{
+      const stream = await navigator.mediaDevices.getUserMedia({video:{width:960,height:540}});
+      video.srcObject = stream;
+      await video.play();
+      usingCamera = true;
+      btnCamera.classList.add('active'); btnDemo.classList.remove('active');
+      sourceLabel.textContent = 'Live Camera';
+      prevGray = null;
+    } catch(err){
+      pushAlert('warn', 'Camera unavailable in this environment — staying on demo feed.');
+    }
+  });
+
+  btnZone.addEventListener('click', ()=>{
+    zoneOn = !zoneOn;
+    btnZone.textContent = 'Restricted Zone: ' + (zoneOn?'ON':'OFF');
+    btnZone.classList.toggle('active', zoneOn);
+  });
+  btnZone.classList.add('active');
+
+  btnPause.addEventListener('click', ()=>{
+    paused = !paused;
+    btnPause.textContent = paused ? 'Resume' : 'Pause';
+    btnPause.classList.toggle('danger', paused);
+    btnPause.classList.toggle('active', paused);
+    statusDot.classList.toggle('paused', paused);
+    statusDot.classList.toggle('live', !paused);
+    statusText.textContent = paused ? 'PAUSED' : 'MONITORING';
+  });
+
+  btnClear.addEventListener('click', ()=>{
+    document.getElementById('alertList').innerHTML = '<div class="empty-log" id="emptyLog">No events yet — watching the feed…</div>';
+    counts = {info:0,warn:0,crit:0};
+    document.getElementById('cntInfo').textContent = 0;
+    document.getElementById('cntWarn').textContent = 0;
+    document.getElementById('cntCrit').textContent = 0;
+  });
+
+  sensSlider.addEventListener('input', ()=>{
+    sensitivity = parseInt(sensSlider.value,10);
+    sensVal.textContent = sensitivity;
+  });
+
+  // zone dragging
+  function getPos(e){
+    const rect = overlayCanvas.getBoundingClientRect();
+    const cx = (e.touches? e.touches[0].clientX : e.clientX) - rect.left;
+    const cy = (e.touches? e.touches[0].clientY : e.clientY) - rect.top;
+    return { x: cx/rect.width*W, y: cy/rect.height*H };
+  }
+  overlayCanvas.addEventListener('pointerdown', (e)=>{
+    const p = getPos(e);
+    if(zoneOn && p.x>=zone.x && p.x<=zone.x+zone.w && p.y>=zone.y && p.y<=zone.y+zone.h){
+      dragging = true; dragOffset = {x:p.x-zone.x, y:p.y-zone.y};
+    }
+  });
+  window.addEventListener('pointermove', (e)=>{
+    if(!dragging) return;
+    const p = getPos(e);
+    zone.x = Math.min(Math.max(0,p.x-dragOffset.x), W-zone.w);
+    zone.y = Math.min(Math.max(0,p.y-dragOffset.y), H-zone.h);
+  });
+  window.addEventListener('pointerup', ()=>{ dragging = false; });
+
+})();
+</script>
+</body>
+</html>
